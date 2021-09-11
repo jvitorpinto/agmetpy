@@ -1,0 +1,21 @@
+Metadata-Version: 2.1
+Name: agmetpy
+Version: 0.0.1
+Summary: A python package for agricultural forecasting and crop modelling
+Home-page: https://github.com/jvitorpinto/agmetpy
+Author: João Vitor de Nóvoa Pinto
+Author-email: jvitorpinto@gmail.com
+License: UNKNOWN
+Project-URL: Bug Tracker, https://github.com/jvitorpinto/agmetpy
+Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+
+# agmetpy
+
+This is a pre-alpha version of the package.
+

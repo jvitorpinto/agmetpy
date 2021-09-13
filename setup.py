@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="agmetpy",
-    version="0.0.1",
+    version="0.0.2",
     author="João Vitor de Nóvoa Pinto",
     author_email="jvitorpinto@gmail.com",
     description="A python package for agricultural forecasting and crop modelling",

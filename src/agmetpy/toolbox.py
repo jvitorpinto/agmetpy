@@ -916,6 +916,13 @@ def stefan_boltzmann_law(temp, epsilon = 1):
     sigma = 5.670374419e-8 # stefan-boltzmann constant [W/K**4/m**2]
     return epsilon * sigma * temp ** 4
 
+def growing_degree_days(tb, temp_mean):
+    return np.maximum(temp_mean - tb, 0)
+
+def growing_degree_days(lower_tb, upper_tb, tmin, tmax):
+    pass
+
+
 def reference_evapotranspiration(tmax, tmin, rn, g, psy, u2, es, ea, method = ReferenceEvapotranspirationMethod.ASCE_ET0, hourly = False):
     '''
     Calculates the reference evapotranspiration for short or tall reference surface

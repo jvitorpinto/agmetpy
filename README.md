@@ -7,4 +7,4 @@ Currently, AgmetPy has a complete set of functions for solar position calculatio
 We are working on functions to calculate evapotranspiration by satellite images and to improve the methodology for soil water balance.
 
 ## References
-ALLEN, R. G. et al. Crop evapotranspiration: Guidelines for computing crop water requirements. FAO Irrigation and drainage paper 56, FAO: Rome, 1998.
+ALLEN, R. G. et al. __Crop evapotranspiration: Guidelines for computing crop water requirements__. FAO Irrigation and drainage paper 56. Rome: Food and Agriculture Organization of the United Nations, 1998. Available from: <<https://www.fao.org/3/X0490E/x0490e00.htm>>. Access on: 18 Oct. 2021.

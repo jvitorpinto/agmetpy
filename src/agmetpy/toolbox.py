@@ -23,6 +23,8 @@ class ClearnessIndexMethod(enum.Enum):
     ASCE = 1
 
 #-----------------------------------------------------------------------------
+# Support functions
+#-----------------------------------------------------------------------------
 
 def day_of_year(dt):
     """
@@ -45,6 +47,8 @@ def day_of_year(dt):
 
 def get_decimal_time(dt):
     return (dt - dt.astype("datetime64[D]")).astype("timedelta64[s]").astype(int) / 3600
+
+#-----------------------------------------------------------------------------
 
 def _earth_sun_distance(j):
     x = j * 2 * np.pi / 365

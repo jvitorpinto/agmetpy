@@ -1,5 +1,4 @@
 import numpy as np
-from numpy.core.fromnumeric import repeat
 from . import stress
 
 class Event:
@@ -70,46 +69,59 @@ class CropNone(CropConstant):
     def __init__(self):
         super(CropNone, self).__init__(kcb = 0, h = 0, zr = 0, fc = 0)
 
+class Management(SimulationObject):
+    def __init__(self):
+        super(Management, self).__init__()
+
+
 class Soil(SimulationObject):
-    def __init__(self, theta, theta_sat, theta_fc, theta_wp, ksat, dz = 0.1, ze = 0.1, p = 0.5):
+    def __init__(self,
+                 theta: 'np.ndarray|float',
+                 theta_sat: 'np.ndarray|float',
+                 theta_fc: 'np.ndarray|float',
+                 theta_wp: 'np.ndarray|float',
+                 ksat: 'np.ndarray|float',
+                 dz: 'float' = 0.1,
+                 ze: 'float' = 0.1,
+                 p: 'float' = 0.5):
         '''
         Represents a soil.
+
+        The parameters theta, theta_sat, theta_fc, theta_wp and ksat
+        will be broadcasted by numpy.broadcast_arrays() and converted
+        to numpy.ndarrays if necessary.
         
         Parameters
         ----------
-        theta : np.ndarrray(dtype = "float")
+        theta : np.ndarray | float
             Initial soil moisture [m³/m³].
 
-        theta_sat : float, array_like
+        theta_sat : np.ndarray | float
             Soil moisture at saturation [m³/m³].
 
-        theta_fc : float, array_like
+        theta_fc : np.ndarray | float
             Soil moisture at field capacity [m³/m³].
 
-        theta_wp : float, array_like
+        theta_wp : np.ndarray | float
             Soil moisture at wilting point [m³/m³].
         
-        ksat : float, array_like
+        ksat : np.ndarray | float
             Saturated hydraulic conductivity [mm/day].
 
-        dz : float, array_like, optional
+        dz : np.ndarray | float, optional
             Thickness of soil layers [m]. The default is 0.1.
 
-        ze : float, array_like, optional
+        ze : np.ndarray | float, optional
             Thickness of evaporation layer [m]. The default is 0.1.
 
-        p : float, array_like, optional
+        p : np.ndarray | float, optional
             The FAO's coefficient for evapotranspiration reduction. The default is 0.5.
         '''
-
+        super(Soil, self).__init__()
         theta, theta_sat, theta_fc, theta_wp, ksat = np.atleast_1d(
-            theta, theta_sat, theta_fc, theta_wp, ksat
-        )
-
+            theta, theta_sat, theta_fc, theta_wp, ksat)
         theta, theta_sat, theta_fc, theta_wp, ksat = np.broadcast_arrays(
-            theta, theta_sat, theta_fc, theta_wp, ksat
-        )
-
+            theta, theta_sat, theta_fc, theta_wp, ksat)
         # soil moisture [m³/m³]
         self._theta = theta
         # soil moisture at saturation [m³/m³]
@@ -125,7 +137,7 @@ class Soil(SimulationObject):
         # height of evaporative layer [m]
         self._ze = ze
         # number of layers and depth of soil [m]
-        self.nlayers = theta.shape[0]
+        self.nlayers: int = theta.shape[0]
         self._depth = self.nlayers * dz
         # the FAO's p coefficient for evapotranspiration reduction.
         self._p = p
@@ -137,23 +149,39 @@ class Soil(SimulationObject):
     def initialize(self):
         # self._ks holds a reference to self._taw and self._raw, so both self._taw
         # and self._raw must be updated in place. The same occurs for self._kr.
-        zr = self.simulation.root_depth()
-        
-        self._taw = np.atleast_1d(self.available_water(self._theta_fc, self._theta_wp, zr, total=True))
+        zr = self._simulation.root_depth()
+        # available water
+        aw = self.available_water(self._theta_fc, self._theta_wp, zr, total=True)
+        self._taw = np.atleast_1d(aw)
         self._raw = self._p * self._taw
         self._ks = stress.StressLinear(self._raw, self._taw, inverse=True)
-        
-        self._tew = np.atleast_1d(self.available_water(self._theta_fc, 0.5 * self._theta_wp, self._ze, total=True))
+        # evaporable water
+        ew = self.available_water(self._theta_fc, 0.5 * self._theta_wp, self._ze, total=True)
+        self._tew = np.atleast_1d(ew)
         self._rew = self._pe * self._tew
         self._kr = stress.StressLinear(self._rew, self._tew, inverse=True)
-
+        # drainage characteristic for drainage simulation
         self._tau = self.drainage_characteristic()
-        # end initialize(self)
     
-    def drainage_characteristic(self):
-        return np.clip(0.0866 * self._ksat ** 0.35, 0, 1)
+    def drainage_characteristic(self) -> np.ndarray:
+        '''
+        Calculates the drainage characteristic
 
-    def depletion_from(self, theta_ref, z=None, z0=0, total=False):
+        The drainage characteristic τ, 0 ≤ τ ≤ 1, describes how fast the
+        gravitational water (i.e. water above the field capacity) percolates
+        throughout the soil profile. A value of 1 indicates that all the water
+        above field capacity will be drained after 1 tick of the simulation,
+        while a value of 0 indicates no water will be drained.
+
+        In AgmetPy, the drainage characteristic is estimated from the daily
+        saturated hydraulic conductivity by using the same equation as FAO's
+        AquaCrop.
+        '''
+        tau1d = np.clip(0.0866 * self._ksat ** 0.35, 0, 1)
+        tau = 1 - (1 - tau1d)**self._simulation.deltatime
+        return tau
+
+    def depletion_from(self, theta_ref, z=None, z0=0, total=False) -> np.ndarray:
         '''
         Calculates the water depleted from a reference moisture between
         z0 and z. If total is set to True, returns the total depletion
@@ -178,30 +206,56 @@ class Soil(SimulationObject):
             de = de.sum(0)
         return de
     
-    def calculate_drainage(self):
-        #tau = np.broadcast_to(np.array([0.1]), self._theta.shape)
-        tau = self._tau
+    def calculate_drainage(self) -> None:
+        '''
+        Calculates the drainage of water throughout the soil profile.
+
+        By now, the soil moisture is updated in place. It will be changed in
+        future versions.
+        '''
+        # The complete drainage function will limit the drainage to the
+        # saturated hydraulic conductivity of each layer. This is not implemented
+        # yet.
+        tau = self._tau.copy()
+        # replace 0s with 1s to avoid zero division error and stores which values
+        # are originally zero in tau_zero.
+        tau_zero = tau == 0
+        tau_div = np.where(tau_zero, 1, tau)
         # variable to store the cumuluative drainage
         cumdr = np.zeros_like(np.atleast_1d(self._theta[0]))
         upper_da = 0
+        #exc = np.zeros_like(self._theta)
         for i in range(0, self.nlayers):
             # drainage ability, ie. how much theta varies per tick
             da = np.maximum(tau[i] * (self._theta[i] - self._theta_fc[i]), 0)
-            # if the drainage ability of the current layer is smaller than
-            # the drainage ability of upper layer, calculates how much moisture
-            # the current layer must have in order to reach the same drainage
-            # ability
-            dcum = np.where(upper_da > da, self._dz * np.minimum(upper_da / tau[i], self._theta_sat[i]), 0)
+            # calculates how much water the current layer must have
+            # for its drainage ability to be equal to the drainage
+            # ability of the previous layer.
+            ntheta = np.where(tau_zero[i],
+                              self._theta_sat[i],
+                              self._theta_fc[i] + upper_da / tau_div[i])
+            ntheta = np.clip(ntheta, 0, self._theta_sat[i])
+            # the calculated soil moisture must not exceed theta_sat
+            dtheta = np.clip(ntheta - self._theta[i],
+                             0, self._theta_sat[i] - self._theta_fc[i])
+            # calculates how much water will be depleted from the cumulative
+            # drainage to reach the needed soil moisture calculated above.
+            # It is necessary only when the drainage ability of the
+            # current layer is smaller than the drainage ability of the
+            # upperlying layer.
+            dcum = np.where(upper_da > da, self._dz * dtheta, 0)
+            # the amount of water depleted from the cumulative drainage must
+            # not exceed the total water available in the cumulative drainage.
             dcum = np.minimum(dcum, cumdr)
             # the cumulative drainage and the soil moisture are updated.
             cumdr = cumdr - dcum + da * self._dz
             self._theta[i] = self._theta[i] - da + dcum / self._dz
             upper_da = da
     
-    def depletion_from_sat(self, z=None, z0=0, total=False):
+    def depletion_from_sat(self, z = None, z0 = 0, total = False):
         return self.depletion_from(self._theta_sat, z, z0, total)
     
-    def depletion_from_fc(self, z=None, z0=0, total=False):
+    def depletion_from_fc(self, z = None, z0 = 0, total = False):
         return self.depletion_from(self._theta_fc, z, z0, total)
     
     def depletion_from_wp(self, z=None, z0=0, total=False):
@@ -243,7 +297,7 @@ class Soil(SimulationObject):
         return aw
     
     def total_available_water(self):
-        zr = self.simulation.root_depth()
+        zr = self._simulation.root_depth()
         return self.available_water(self._theta_fc, self._theta_wp, zr)
     
     def evaporable_water(self, total):
@@ -256,9 +310,9 @@ class Soil(SimulationObject):
         if (self.option_calculate_drainage):
             self.calculate_drainage()
         # updates the root zone
-        zr = self.simulation.root_depth()
+        zr = self._simulation.root_depth()
         # chuva + irrigação
-        water_depth = (self.simulation.rainfall() + self.simulation.irrigation()) / 1000.
+        water_depth = (self._simulation.rainfall() + self._simulation.irrigation()) / 1000.
         self._increase_theta_from_top(water_depth)
         
         # retrieves reference evapotranspiration from simulation data
@@ -266,20 +320,21 @@ class Soil(SimulationObject):
         #    et = ks * kc * et0
         # Evaporation:
         #    ev = kr * ke * et0
-        et0 = self.simulation.ref_et() / 1000.
+        et0 = self._simulation.ref_et() / 1000.
         
         de = self.depletion_of_evap_layer(total=True)
-        ke = np.fmin(self.simulation.ke(), self.simulation.f_ew() * self.simulation.maximum_kc())
-        self.simulation._set_actual_evaporation(self._kr.coefficient(de) * ke * et0)
+        ke = np.fmin(self._simulation.ke(),
+                     self._simulation.f_ew() * self._simulation.maximum_kc())
+        self._simulation._set_actual_evaporation(self._kr.coefficient(de) * ke * et0)
         self.extract_water(ke * et0,
                            self._theta_fc, 0.5 * self._theta_wp, self._ze, 0.,
                            self._kr.coefficient(de))
         
-        kb = self.simulation.kcb()
-        zr = self.simulation.root_depth()
+        kb = self._simulation.kcb()
+        zr = self._simulation.root_depth()
         dr = self.depletion_from_fc(zr, total=True)
         self._update_taw(zr)
-        self.simulation._set_actual_transpiration(self._ks.coefficient(dr) * kb * et0)
+        self._simulation._set_actual_transpiration(self._ks.coefficient(dr) * kb * et0)
         self.extract_water(kb * et0,
                            self._theta_fc, self._theta_wp, zr, 0.,
                            self._ks.coefficient(dr))
@@ -301,12 +356,6 @@ class Soil(SimulationObject):
             depleted.
         kr : float
             A reduction coefficient between 0 and 1.
-
-        Returns
-        -------
-        TYPE
-            DESCRIPTION.
-
         '''
         # water available between theta_max and theta_min [m]
         taw = self.available_water(theta_max, theta_min, z, z0)
@@ -322,19 +371,13 @@ class Soil(SimulationObject):
         return depth - ext_total
     
     def _increase_theta_from_top(self, depth):
-        # mudar isso depois
         dp = self.depletion_from_sat()
-        #dp -= np.clip(depth - dp.cumsum(0), 0., dp)
-        #self._theta = np.clip(self._theta_sat - dp / self._dz, 0, self._theta_sat)
-        #dp = np.clip(depth - dp.cumsum(0), 0., dp)
-        #self._theta = np.clip(self._theta + dp / self._dz, 0, self._theta_sat
-        dr = depth
         for i in range(0, self.nlayers):
             ddepth = np.minimum(depth, dp[i])
             depth = depth - ddepth
             self._theta[i] = self._theta[i] + ddepth / self._dz
     
-    def from_to(self, z=None, z0=0):
+    def from_to(self, z = None, z0 = 0):
         '''
         Returns an array indicating how much of each layer
         is contained between z0 and z.
@@ -350,10 +393,10 @@ class Soil(SimulationObject):
 
         Parameters
         ----------
-        z : array-like float, optional
+        z : np.ndarray|float, optional
             The second depth. If set to None, the total soil depth will used.
 
-        z0 : array-like float, optional
+        z0 : np.ndarray|float, optional
             The first depth. The default is 0.
 
         Returns
@@ -406,13 +449,29 @@ def maximum_kc(kcb, u2, rhmin, h):
     return np.fmax(1.2 + p1 * p2, kcb + 0.05)
 
 class Environment(SimulationObject):
-    def __init__(self, tmax, tmin, rainfall, rhmin, wind_speed, ref_et, repeat = False):
+    def __init__(self,
+                 tmax: 'np.ndarray | float',
+                 tmin: 'np.ndarray | float',
+                 rainfall: 'np.ndarray | float',
+                 rhmin: 'np.ndarray | float',
+                 wind_speed: 'np.ndarray | float',
+                 ref_et: 'np.ndarray | float',
+                 repeat: bool = False):
+        '''
+        Creates an Environment, which represents weather conditions and
+        iterations between soil, crops and atmosphere.
+
+        Environments hold information abour air temperature, rainfall, relative
+        humidity, solar radiation, solar irradiance and many weather variables.
+        '''
+        super(Environment, self).__init__()
+
         tmax, tmin, rainfall, rhmin, wind_speed, ref_et = np.atleast_1d(
             tmax, tmin, rainfall, rhmin, wind_speed, ref_et)
         tmax, tmin, rainfall, rhmin, wind_speed, ref_et = np.broadcast_arrays(
             tmax, tmin, rainfall, rhmin, wind_speed, ref_et)
         
-        self._index = -1
+        self._index: int = -1
         self._length = np.size(tmax, 0)
         self._repeat = repeat
         self._tmax = tmax
@@ -422,34 +481,34 @@ class Environment(SimulationObject):
         self._wind_speed = wind_speed
         self._ref_et = ref_et
         
-    def temp_max(self):
+    def temp_max(self) -> 'np.ndarray | float':
         return self._tmax[self._index]
 
-    def temp_min(self):
+    def temp_min(self) -> 'np.ndarray | float':
         return self._tmin[self._index]
         
-    def rh_min(self):
+    def rh_min(self) -> 'np.ndarray | float':
         return self._rhmin[self._index]
 
-    def wind_speed(self):
+    def wind_speed(self) -> 'np.ndarray | float':
         return self._wind_speed[self._index]
 
-    def ref_et(self):
+    def ref_et(self) -> 'np.ndarray | float':
         return self._ref_et[self._index]
 
-    def maximum_kc(self):
-        kcb = self.simulation.kcb()
-        h = self.simulation.crop_height()
+    def maximum_kc(self) -> 'np.ndarray | float':
+        kcb = self._simulation.kcb()
+        h = self._simulation.crop_height()
 
         u2 = self.wind_speed()
         rhmin = self.rh_min()
 
         return maximum_kc(kcb, u2, rhmin, h)
 
-    def rainfall(self):
+    def rainfall(self) -> 'np.ndarray | float':
         return self._rainfall[self._index]
         
-    def update(self):
+    def update(self) -> None:
         if self._repeat:
             self._index = (self._index + 1) % self._length
         else:
@@ -463,23 +522,30 @@ class EnvironmentDataFrame(Environment):
         rhmin = data['rhmin']
         wind_speed = data['wind_speed']
         ref_et = data['ref_et']
-        super(EnvironmentDataFrame, self).__init__(tmax=tmax, tmin=tmin, rainfall=rainfall, rhmin=rhmin, wind_speed=wind_speed, ref_et=ref_et, repeat=repeat)
+        super(EnvironmentDataFrame, self).__init__(tmax = tmax,
+                                                   tmin = tmin,
+                                                   rainfall = rainfall,
+                                                   rhmin = rhmin,
+                                                   wind_speed = wind_speed,
+                                                   ref_et = ref_et,
+                                                   repeat = repeat)
+        # end __init__
 
 class Simulation:
-    def __init__(self, crop, soil, environment):
+    def __init__(self, crop: Crop, soil: Soil, environment: Environment):
         self._crop = crop
         self._soil = soil
         self._environment = environment
         
-        self._crop.simulation = self
-        self._soil.simulation = self
-        self._environment.simulation = self
+        self._crop._simulation = self
+        self._soil._simulation = self
+        self._environment._simulation = self
         
         self._ev = None
         self._et = None
         
         self._day = -1
-        self.initialize()
+        self.deltatime: float = 1
     
     def initialize(self):
         self._environment.initialize()

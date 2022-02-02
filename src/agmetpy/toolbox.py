@@ -572,7 +572,9 @@ def log_wind_profile(u1, z2 = 2, z1 = 10, d = 0.084, z0 = 0.01476):
     """
     Estimates wind speed at height z2 based on wind speed measued at
     height z1, given the height of the zero plane displacement and the roughness
-    length of the surface. For a standardized FAO Peman Monteith ET0 surface
+    length of the surface.
+    
+    For a standardized FAO Peman Monteith ET0 surface
     you can use the default values for d and z0. If the wind speed is measured
     at a standard weather station, which measures wind speed
     at a 10m height, you can use the default value for z1.

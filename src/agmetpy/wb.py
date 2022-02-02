@@ -2,6 +2,7 @@ import numpy as np
 from . import stress
 
 class Event:
+    # for test purposes only, not being used.
     def __init__(self, parent):
         self._parent = parent
         self._subscriptions = []
@@ -73,7 +74,6 @@ class Management(SimulationObject):
     def __init__(self):
         super(Management, self).__init__()
 
-
 class Soil(SimulationObject):
     def __init__(self,
                  theta: 'np.ndarray|float',
@@ -122,8 +122,12 @@ class Soil(SimulationObject):
             theta, theta_sat, theta_fc, theta_wp, ksat)
         theta, theta_sat, theta_fc, theta_wp, ksat = np.broadcast_arrays(
             theta, theta_sat, theta_fc, theta_wp, ksat)
+        # records the initial condition to allow the reset of the simulation
+        # other variables such as theta_sat, theta_fc and ksat are not expected
+        # to change during the simulation, so their initial values are not stored.
+        self._ini_theta = theta
         # soil moisture [m³/m³]
-        self._theta = theta
+        self._theta = theta.copy()
         # soil moisture at saturation [m³/m³]
         self._theta_sat = theta_sat
         # soil moisture at field capacity [m³/m³]
@@ -213,9 +217,9 @@ class Soil(SimulationObject):
         By now, the soil moisture is updated in place. It will be changed in
         future versions.
         '''
-        # The complete drainage function will limit the drainage to the
-        # saturated hydraulic conductivity of each layer. This is not implemented
-        # yet.
+        # The complete drainage function will limit the drainage so that it
+        # is smaller than the saturated hydraulic conductivity of each layer.
+        # This is not implemented yet.
         tau = self._tau.copy()
         # replace 0s with 1s to avoid zero division error and stores which values
         # are originally zero in tau_zero.
@@ -224,6 +228,7 @@ class Soil(SimulationObject):
         # variable to store the cumuluative drainage
         cumdr = np.zeros_like(np.atleast_1d(self._theta[0]))
         upper_da = 0
+        new_theta = []
         #exc = np.zeros_like(self._theta)
         for i in range(0, self.nlayers):
             # drainage ability, ie. how much theta varies per tick
@@ -249,8 +254,9 @@ class Soil(SimulationObject):
             dcum = np.minimum(dcum, cumdr)
             # the cumulative drainage and the soil moisture are updated.
             cumdr = cumdr - dcum + da * self._dz
-            self._theta[i] = self._theta[i] - da + dcum / self._dz
+            new_theta.append(self._theta[i] - da + dcum / self._dz)
             upper_da = da
+        self._theta = np.stack(new_theta, 0)
     
     def depletion_from_sat(self, z = None, z0 = 0, total = False):
         return self.depletion_from(self._theta_sat, z, z0, total)
@@ -295,6 +301,12 @@ class Soil(SimulationObject):
         if total:
             aw = aw.sum(0)
         return aw
+
+    def get_soil_moisture(self, z, z0 = 0):
+        '''
+        Returns the average soil moisture between z0 and z.
+        '''
+        return np.mean(self._theta * self.weights(z, z0), 0)
     
     def total_available_water(self):
         zr = self._simulation.root_depth()
@@ -372,10 +384,12 @@ class Soil(SimulationObject):
     
     def _increase_theta_from_top(self, depth):
         dp = self.depletion_from_sat()
+        new_theta = []
         for i in range(0, self.nlayers):
             ddepth = np.minimum(depth, dp[i])
             depth = depth - ddepth
-            self._theta[i] = self._theta[i] + ddepth / self._dz
+            new_theta.append(self._theta[i] + ddepth / self._dz)
+        self._theta = np.stack(new_theta, 0)
     
     def from_to(self, z = None, z0 = 0):
         '''

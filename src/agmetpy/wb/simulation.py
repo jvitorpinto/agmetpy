@@ -1,3 +1,4 @@
+from calendar import c
 import numpy as np
 
 from .array_collection import ArrayCollection
@@ -43,11 +44,17 @@ class SimulationObject:
     def _get_shape(self) -> tuple:
         return self._var.shape[1:]
     
+    def _get_index(self):
+        return self.simulation.index
+    
     simulation = property(
         lambda self: self._get_simulation())
     
     shape = property(
         lambda self: self._get_shape())
+    
+    index = property(
+        lambda self: self._get_index())
 
 class Simulation:
 
@@ -56,16 +63,17 @@ class Simulation:
             crop: 'crop.Crop',
             soil: 'soil.Soil',
             weather: 'weather.Weather'):
-        self._crop = crop
-        self._soil = soil
-        self._weather = weather
-        
-        self._crop._simulation = self
-        self._soil._simulation = self
-        self._weather._simulation = self
 
+        self._crop = self.assign(crop)
+        self._soil = self.assign(soil)
+        self._weather = self.assign(weather)
+        
         self._index: int = 0
         self._dt: int = 86400
+    
+    def assign(self, obj: SimulationObject):
+        obj._simulation = self
+        return obj
     
     def __iter__(self):
         self._index = -1
@@ -73,8 +81,6 @@ class Simulation:
     
     def __next__(self):
         self._index += 1
-        if self.weather.finished():
-            raise StopIteration()
         self.update()
         return self._index
     

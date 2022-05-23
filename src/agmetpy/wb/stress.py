@@ -9,6 +9,9 @@ Created on Sep 8 2021
 import numpy as np
 
 class Stress:
+    def __call__(self, x):
+        pass
+
     def coefficient(self, x):
         '''
         Calculates the reduction coefficient as a function

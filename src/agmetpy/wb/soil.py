@@ -78,12 +78,35 @@ class Soil(SimulationObject):
         self._theta = theta
         return ext
     
+    def evap_dist(self, zmin, zmax):
+        pass
+    
     def evaporate(self):
         pass
 
     def drainage_characteristic(self) -> np.ndarray:
         tau_day = np.minimum(0.0866 * (self._ksat * 8.64e7) ** 0.35, 1)
         return 1 - (1 - tau_day) ** (self.simulation.dt / 8.64e4)
+    
+    def update(self):
+        rain = self.simulation.weather['rainfall']
+        dtheta, dp, ro = self.drain(rain)
+
+        kc_max = self.simulation.weather['kc_max']
+        kcb = self.simulation.crop.kcb
+        ks = 1
+        
+        # how it should be
+        #
+        # legend:
+        # - few: exposed and wetted soil fraction
+        # - fc: covered soil fraction
+        # - (1-fc): exposed soil fraction
+        # - fw: wetted soil fraction
+        #
+        # few = min(1 - fc, fw)
+        # Ke = min(Kr * (Kcmax - Kcb), few * Kcmax)
+        # ETc = (Ks * Kcb + Ke) * ET0
 
     def drain(self, depth):
         tau = self.drainage_characteristic()
@@ -91,6 +114,7 @@ class Soil(SimulationObject):
         upper_layer_drainage_ability = np.full(self.layer_shape, np.inf)
         cumulative_drainage = np.copy(depth)
         excess = np.zeros(self.soil_shape).copy()
+
         for i in range(self.nlayers):
             drainage_ability = np.maximum(theta[i] - self._theta_fc[i], 0) * tau[i]
             theta[i] -= drainage_ability
@@ -112,8 +136,9 @@ class Soil(SimulationObject):
         
         depletion = (self._theta_sat - theta) * self._dz
         cumulative_excess = np.zeros(self.layer_shape)
-        for i in range(10):
-            j = 10 - i - 1
+
+        for i in range(self.nlayers):
+            j = self.nlayers - i - 1
             cumulative_excess += excess[j]
             ext = np.minimum(depletion[j], cumulative_excess)
             theta[j] += ext
@@ -223,6 +248,21 @@ class Soil(SimulationObject):
     
     dz = property(
         lambda self: self._get_dz())
+    
+    #-------------------------------------------------
+    # ze
+    #-------------------------------------------------
+    
+    def _set_ze(self, value):
+        self._set('ze', self.from_to(0, value))
+
+    _ze = property(
+        lambda self: self._get('ze'),
+        lambda self, value: self._set_ze(value))
+
+    ze = property(
+        lambda self: self._copy('ze'),
+        lambda self, value: self._set_ze(value))
     
     #-------------------------------------------------
     # soil_shape

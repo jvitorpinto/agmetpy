@@ -35,10 +35,12 @@ class Weather(SimulationObject):
             **kwargs):
         super(Weather, self).__init__(**kwargs)
         self._repeat = False
-        
-    def finished(self) -> bool:
-        return self.index >= self._var.shape[0]
+    
 
+    def update(self):
+        if self.index >= self.length:
+            raise StopIteration()
+    
     def _get_index(self):
         return self.simulation.index % self.length if self._repeat else self.simulation.index
     

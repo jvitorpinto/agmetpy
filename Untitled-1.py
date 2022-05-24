@@ -12,9 +12,10 @@ rain = np.array([
 
 c = wb.CropConstant(0.8, 0.5, 0.5, 0.8)
 s = wb.Soil([[0.3 - i*0.01] for i in range(10)], 0.3, 0.2, 0.1, 0.1/86400, 0.1)
-w = wb.Weather(temp_max=tmax, temp_min=22, rainfall=rain, kc_max = 1.2)
+w = wb.Weather(temp_max=tmax, temp_min=22, rainfall=rain, kc_max=1.2, et_ref=0.005)
+m = wb.ManagementConstant()
 
-sim = wb.Simulation(c, s, w)
+sim = wb.Simulation(c, s, w, m)
 
 dist = np.maximum([[0.4 - i*0.1] for i in range(10)], 0)
 

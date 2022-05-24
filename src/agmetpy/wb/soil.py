@@ -34,6 +34,24 @@ class Soil(SimulationObject):
         self._ze = ze
         self._pe = pe
     
+    def get_ks(self):
+        p = self._p
+        theta_fc = self._theta_fc
+        theta_wp = self._theta_wp
+        theta = self._theta
+        return np.clip((theta-theta_wp) / ((1-p)*(theta_fc-theta_wp)), 0, 1)
+    
+    ks = property(lambda self: self.get_ks())
+
+    def get_kr(self):
+        pe = self._pe
+        theta_fc = self._theta_fc
+        half_theta_wp = 0.5 * self._theta_wp
+        theta = self._theta
+        return np.clip((theta-half_theta_wp) / ((1-pe)*(theta_fc-half_theta_wp)), 0, 1)
+    
+    kr = property(lambda self: self.get_kr())
+    
     def from_to(self, zmin, zmax):
         if np.any(zmin > zmax):
             raise Exception('zmin cannot be greater than zmax')
@@ -94,7 +112,14 @@ class Soil(SimulationObject):
 
         kc_max = self.simulation.weather['kc_max']
         kcb = self.simulation.crop.kcb
-        ks = 1
+        ks = self.ks
+        few = self.simulation.management.few
+        kr = self.kr
+        ke = np.minimum(kr * (kc_max - kcb), few * kc_max)
+        et_ref = self.simulation.weather['et_ref']
+
+        etc = (kcb + ke) * et_ref
+        et = (ks*kcb + ke) * et_ref
         
         # how it should be
         #

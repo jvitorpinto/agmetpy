@@ -62,11 +62,13 @@ class Simulation:
             self,
             crop: 'crop.Crop',
             soil: 'soil.Soil',
-            weather: 'weather.Weather'):
+            weather: 'weather.Weather',
+            management: 'Management'):
 
         self._crop = self.assign(crop)
         self._soil = self.assign(soil)
         self._weather = self.assign(weather)
+        self._management = self.assign(management)
         
         self._index: int = 0
         self._dt: int = 86400
@@ -97,7 +99,26 @@ class Simulation:
 
     crop = property(lambda self: self._crop)
 
+    management = property(lambda self: self._management)
+
     dt = property(lambda self: self._dt)
+
+class Management(SimulationObject):
+
+    fw = property(lambda self: self.get_fw())
+    few = property(lambda self: self.get_few())
+
+class ManagementConstant(Management):
+    def __init__(self):
+        super().__init__(fw=1)
+    
+    def get_fw(self):
+        return 1
+    
+    def get_few(self):
+        fc = self.simulation.crop.ground_covering
+        fw = self.get_fw()
+        return np.minimum(1-fc, fw)
 
 from . import crop
 from . import soil

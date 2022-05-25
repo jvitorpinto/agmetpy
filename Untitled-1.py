@@ -22,6 +22,7 @@ dist = np.maximum([[0.4 - i*0.1] for i in range(10)], 0)
 theta = [sim.soil.theta]
 ro = [[0]]
 dp = [[0]]
+
 for i in sim:
     theta.append(sim.soil.theta)
     pass

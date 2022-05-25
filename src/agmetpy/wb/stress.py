@@ -1,98 +1,56 @@
-# -*- coding: utf-8 -*-
-
-'''
-Created on Sep 8 2021
-
-@author João Vitor de Nóvoa Pinto (jvitorpinto@gmail.com)
-'''
-
 import numpy as np
 
 class Stress:
-    def __call__(self, x):
-        pass
-
-    def coefficient(self, x):
-        '''
-        Calculates the reduction coefficient as a function
-        of the stressing factor x.
-
-        Parameters
-        ----------
-        x: array_like, float
-            Stressing factor.
-        '''
-        pass
+    def __call__(self, x=None):
+        return np.ones_like(x)
 
 class StressResponse(Stress):
-    '''
-    Represents a generic response to a stressing factor.
-    '''
-    def __init__(self, xmin, xmax, ymin=0, inverse=False) -> None:
-        '''
-        Initializes a StressResponse object.
+    def __init__(self, xmin, xmax, ymin = 0, x = None, reverse = False) -> None:
+        self.x = x
+        self.xmin = xmin
+        self.xmax = xmax
+        self.ymin = ymin
+        self.reverse = reverse
 
-        Parameters
-        ----------
-        xmin: array_like, float
-            The value of the stressing factor at which the stress response
-            begins
-        xmax: array_like, float
-            The value of the stressing factor at which the stress response
-            reaches its maximum.
-        ymin: array_like, float
-            The smallest stress reduction coefficient.
-        inverse: array_like, bool
-
-        '''
-        super().__init__()
-        self._xmin = xmin
-        self._xmax = xmax
-        self._ymin = ymin
-        self._inverse = inverse
+    def get_x(self):
+        return self._x() if callable(self._x) else x
+    
+    def set_x(self, value):
+        self._x = value
     
     def get_xmin(self):
-        return self._xmin
+        return self._xmin() if callable(self._xmin) else self._xmin
     
     def set_xmin(self, value):
         self._xmin = value
     
-    xmin = property(get_xmin, set_xmin)
+    def get_xmax(self):
+        return self._xmax() if callable(self._xmax) else self._xmax
+    
+    def set_xmax(self, value):
+        self._xmax = value
+    
+    def get_ymin(self):
+        return self._ymin() if callable(self._ymin) else self._ymin
+    
+    def set_ymin(self, value):
+        self._ymin = value
+    
+    x = property(lambda self: self.get_x(), lambda self, value: self.set_x(value))
+
+    xmin = property(lambda self: self.get_xmin(), lambda self, value: self.set_xmin(value))
+
+    xmax = property(lambda self: self.get_xmax(), lambda self, value: self.set_xmax(value))
+
+    ymin = property(lambda self: self.get_ymin(), lambda self, value: self.set_ymin(value))
 
 class StressLinear(StressResponse):
-    '''
-    Represents a linear response to a stressing factor.
-    '''
-    def coefficient(self, x):
-        dx = self._xmax - self._xmin
-        # if (xmax - xmin) / dx will result in a zero-division error
-        # then dx is set to 1, the result is calculated and then the
-        # result is set to 1 where dx was 0.
-        zerodiv = dx == 0
-        dx = np.where(zerodiv, 1, dx)
-        y = np.clip((x - self._xmin) / dx, 0, 1)
-        y = np.where(zerodiv, np.where(x > self._xmax, 1, 0), y)
-        y = (1-self._ymin) * y
-        if self._inverse:
-            return 1 - y
-        else:
-            return self._ymin + y
-
-class StressCombined(Stress):
-    def __init__(self, stresses):
-        super().__init__()
-        self._stresses = stresses
-
-class StressCombinedMinimum(StressCombined):
-    def coefficient(self, x):
-        y = 1
-        for stress in self._stresses:
-            y = np.minimum(y, stress.coefficient(x))
-        return y
-
-class StressCombinedProduct(StressCombined):
-    def coefficient(self, x):
-        y = 1
-        for stress in self._stresses:
-            y = y * stress.coefficient(x)
-        return y
+    def __call__(self, x=None):
+        dx = self.xmax - self.xmin
+        k = self.x - self.xmin if x is None else x - self.xmin
+        k = np.clip(k/dx, 0, 1)
+        
+        if self.reverse:
+            k = 1-k
+        
+        return (self.ymin) + (1-self.ymin) * k

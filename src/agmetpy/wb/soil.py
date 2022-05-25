@@ -1,5 +1,7 @@
 import numpy as np
 
+from .stress import StressLinear
+
 from .simulation import SimulationObject
 
 def _safe_divide(a, b, on_zero=np.inf):
@@ -33,24 +35,36 @@ class Soil(SimulationObject):
         self._dz = dz
         self._ze = ze
         self._pe = pe
+
+        dz_total = self.from_to(0, self._depth)
+
+        self.ks = StressLinear(
+            xmin=lambda: self.readily_available_water(dz_total),
+            xmax=lambda: self.total_available_water(dz_total),
+            x=lambda: self.depletion_from_fc(dz_total),
+            reverse=True)
+        
+        self.kr = StressLinear(
+            xmin=lambda: self.readily_evaporable_water(dz_total),
+            xmax=lambda: self.total_evaporable_water(dz_total),
+            x=lambda: self.depletion_from_fc(dz_total),
+            reverse=True)
     
     def get_ks(self):
-        p = self._p
-        theta_fc = self._theta_fc
-        theta_wp = self._theta_wp
-        theta = self._theta
-        return np.clip((theta-theta_wp) / ((1-p)*(theta_fc-theta_wp)), 0, 1)
+        return self._ks() if callable(self._ks) else self._ks
     
-    ks = property(lambda self: self.get_ks())
+    def set_ks(self, value):
+        self._ks = value
+
+    ks = property(lambda self: self.get_ks(), lambda self, value: self.set_ks(value))
 
     def get_kr(self):
-        pe = self._pe
-        theta_fc = self._theta_fc
-        half_theta_wp = 0.5 * self._theta_wp
-        theta = self._theta
-        return np.clip((theta-half_theta_wp) / ((1-pe)*(theta_fc-half_theta_wp)), 0, 1)
+        return self._kr() if callable(self._kr) else self._kr
     
-    kr = property(lambda self: self.get_kr())
+    def set_kr(self, value):
+        self._kr = value
+    
+    kr = property(lambda self: self.get_kr(), lambda self, value: self.set_kr(value))
     
     def from_to(self, zmin, zmax):
         if np.any(zmin > zmax):
@@ -242,14 +256,14 @@ class Soil(SimulationObject):
     # depth
     #-------------------------------------------------
 
-    def _get_depth(self):
+    def get_depth(self):
         return self._var.shape[0] * self._dz
     
     depth = property(
-        lambda self: self._get_depth())
+        lambda self: self.get_depth())
 
     _depth = property(
-        lambda self: self._get_depth())
+        lambda self: self.get_depth())
     
     #-------------------------------------------------
     # nlayers

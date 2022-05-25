@@ -41,14 +41,14 @@ class RootDistribution:
     zrmax = property(lambda self: self._get_zrmax())
 
 class Crop(SimulationObject):
-
-    root_dist = RootDistribution(
-        zr=lambda self: self._get_zr(),
-        zrmax=lambda self: self._get_zrmax(),
-        k=1.8)
     
     def __init__(self, **kwargs):
         super(Crop, self).__init__(**kwargs)
+        
+        self.root_dist = RootDistribution(
+            zr=self._get_zr,
+            zrmax=self._get_zrmax,
+            k=1.8)
 
     def _get_kcb(self):
         return self._get('kcb')

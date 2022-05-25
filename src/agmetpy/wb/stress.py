@@ -54,3 +54,8 @@ class StressLinear(StressResponse):
             k = 1-k
         
         return (self.ymin) + (1-self.ymin) * k
+
+class StressCombined(Stress):
+    def __init__(self, *args: Stress) -> None:
+        self._stresses = args
+        super(StressCombined, self).__init__()

@@ -97,21 +97,22 @@ class Soil(SimulationObject):
 
     def depletion_from_fc(self, dz):
         return dz * np.maximum(self._theta_fc - self._theta, 0)
-
+    
     def depletion_from_wp(self, dz):
         return dz * np.maximum(self._theta_wp - self._theta, 0)
     
+    def root_dist(self):
+        zend = np.full(self.soil_shape, self._dz).cumsum(0)
+        zini = zend - self._dz
+        return self.simulation.crop.root_dist(zini, zend)
+    
     def extract(self, depth, dist, theta_min):
-        dist = dist() if callable(dist) else dist
         theta = np.copy(self._theta)
         theta_min = np.minimum(theta, theta_min)
         theta = np.maximum(theta - (depth * dist) / self._dz, theta_min)
         ext = (self._theta - theta) * self._dz
         self._theta = theta
         return ext
-    
-    def evap_dist(self, zmin, zmax):
-        pass
     
     def evaporate(self):
         pass
@@ -132,8 +133,11 @@ class Soil(SimulationObject):
         ke = np.minimum(kr * (kc_max - kcb), few * kc_max)
         et_ref = self.simulation.weather['et_ref']
 
+        dist = self.root_dist()
+
         etc = (kcb + ke) * et_ref
         et = (ks*kcb + ke) * et_ref
+
         
         # how it should be
         #

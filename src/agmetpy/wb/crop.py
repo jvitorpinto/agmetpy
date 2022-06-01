@@ -80,6 +80,70 @@ class Crop(SimulationObject):
     ground_covering = property(
         lambda self: self._get_ground_covering())
 
+class CropManager(SimulationObject):
+
+    def __init__(self, id_map, *args, **kwargs):
+        super(CropManager, self).__init__(id_map=id_map, **kwargs)
+        self.crops = args
+        for i in range(len(self.crops)):
+            self.crops[i].bound(i, self)
+    
+    def _nested_set(self, id, key):
+        self._set()
+    
+    def _get_kcb(self):
+        return self._get('kcb')
+    
+    kcb = property(lambda self: self._get_kcb())
+    
+    def _get_zr(self):
+        return self._get('zr')
+    
+    zr = property(lambda self: self._get_zr())
+    
+    def _get_zr_max(self):
+        return self._get('zr_max')
+    
+    zr_max = property(lambda self: self._get_zr_max())
+    
+    def _get_ground_covering(self):
+        return self._get('fc')
+    
+    ground_covering = property(lambda self: self._get_ground_covering())
+    
+    def _get_height(self):
+        return self._get('height')
+    
+    height = property(lambda self: self._get_height())
+    
+    def _get_id_map(self):
+        return self._get('id_map')
+    
+    id_map = property(lambda self: self._get_id_map())
+    
+class CropTest:
+
+    def bound(self, id, parent):
+        self.id = id
+        self.parent = parent
+
+    def _set_id(self, value):
+        self._id = value
+    
+    id = property(
+        lambda self: self._get_id(),
+        lambda self, value: self._set_id(value))
+    
+    def _get_parent(self):
+        return self._parent
+    
+    def _set_parent(self, value):
+        self._parent = value
+    
+    parent = property(
+        lambda self: self._get_parent(),
+        lambda self, value: self._set_parent(value))
+
 class CropConstant(Crop):
     def __init__(self, kcb, h, zr, fc, repeat: bool = True):
         super(CropConstant, self).__init__(kcb=kcb, h=h, zr=zr, fc=fc)
@@ -94,3 +158,7 @@ class CropConstant(Crop):
     
     def _copy(self, varname):
         return super(CropConstant, self)._copy(varname)[self.index]
+
+class CropNone(CropConstant):
+    def __init__(self):
+        super(CropNone, self).__init__(kcb=0, h=0, zr=0, fc=0, repeat=True)

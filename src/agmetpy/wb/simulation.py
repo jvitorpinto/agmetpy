@@ -34,7 +34,7 @@ class SimulationObject:
 
     def _copyto(self, varname, value):
         np.copyto(self._var[varname], value)
-
+    
     def _get_simulation(self) -> 'Simulation':
         if self._simulation is None:
             raise Exception('No simulation has been assigned')
@@ -55,6 +55,36 @@ class SimulationObject:
     
     index = property(
         lambda self: self._get_index())
+
+class ProxyObject(SimulationObject):
+
+    #====================================
+    # property id
+    #====================================
+
+    def _get_parent(self):
+        return self._parent
+    
+    def _set_parent(self, value):
+        self._parent = value
+    
+    parent = property(
+        lambda self: self._get_parent(),
+        lambda self, value: self._set_parent(value))
+
+    #====================================
+    # property id
+    #====================================
+
+    def _get_id(self):
+        return self._id
+    
+    def _set_id(self, value):
+        self._id = value
+    
+    id = property(
+        lambda self: self._get_id(),
+        lambda self, value: self._set_id(value))
 
 class Simulation:
 
@@ -88,6 +118,7 @@ class Simulation:
     
     def update(self):
         self._weather.update()
+        self._management.update()
         self._crop.update()
         self._soil.update()
     
@@ -105,20 +136,35 @@ class Simulation:
 
 class Management(SimulationObject):
 
+    '''
+    Wetted soil fraction
+    '''
     fw = property(lambda self: self.get_fw())
+
+    '''
+    Exposed and wetted soil fraction
+    '''
     few = property(lambda self: self.get_few())
+
+    irrigation = property(lambda self: self.get_irrigation())
 
 class ManagementConstant(Management):
     def __init__(self):
         super().__init__(fw=1)
     
+    def get_irrigation_fw(self):
+        1
+
     def get_fw(self):
-        return 1
+        return self._get('fw')
     
     def get_few(self):
         fc = self.simulation.crop.ground_covering
         fw = self.get_fw()
         return np.minimum(1-fc, fw)
+    
+    def get_irrigation(self):
+        return self._get('irrigation')
 
 from . import crop
 from . import soil

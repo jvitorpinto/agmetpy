@@ -10,6 +10,7 @@ def _safe_divide(a, b, on_zero=np.inf):
     return np.where(zerodiv, on_zero, a / div)
 
 class Soil(SimulationObject):
+
     def __init__(
             self,
             theta: 'np.ndarray',
@@ -36,35 +37,33 @@ class Soil(SimulationObject):
         self._ze = ze
         self._pe = pe
 
-        dz_total = self.from_to(0, self._depth)
-
-        self.ks = StressLinear(
-            xmin=lambda: self.readily_available_water(dz_total),
-            xmax=lambda: self.total_available_water(dz_total),
-            x=lambda: self.depletion_from_fc(dz_total),
-            reverse=True)
-        
-        self.kr = StressLinear(
-            xmin=lambda: self.readily_evaporable_water(dz_total),
-            xmax=lambda: self.total_evaporable_water(dz_total),
-            x=lambda: self.depletion_from_fc(dz_total),
-            reverse=True)
+    def ks(self):
+        '''
+        Transpiration reduction coefficient.
+        '''
+        theta_raw = self._theta_wp + (1 - self._p) * (self._theta_fc - self._theta_wp)
+        w = self._root_dist()
+        return (np.clip((self._theta - self._theta_wp) / (theta_raw - self._theta_wp), 0, 1) * w).sum(0)
     
-    def get_ks(self):
-        return self._ks() if callable(self._ks) else self._ks
+    def kr(self):
+        '''
+        Evaporation reduction coefficient.
+        '''
+        theta_rew = 0.5 * self._theta_wp + (1 - self._pe) * (self._theta_fc - 0.5 * self._theta_wp)
+        w = self.evap_dist()
+        return (np.clip((self._theta - 0.5 * self._theta_wp) / (theta_rew - 0.5 * self._theta_wp), 0, 1) * w).sum(0)
     
-    def set_ks(self, value):
-        self._ks = value
-
-    ks = property(lambda self: self.get_ks(), lambda self, value: self.set_ks(value))
-
-    def get_kr(self):
-        return self._kr() if callable(self._kr) else self._kr
-    
-    def set_kr(self, value):
-        self._kr = value
-    
-    kr = property(lambda self: self.get_kr(), lambda self, value: self.set_kr(value))
+    def ke(self):
+        '''
+        Evaporation coefficient.
+        '''
+        kr = self.kr()
+        kc_max = self._kc_max()
+        kcb = self._kcb()
+        few = self._few()
+        ke1 = kr * (kc_max - kcb)
+        ke2 = few * kc_max
+        return np.minimum(ke1, ke2)
     
     def from_to(self, zmin, zmax):
         if np.any(zmin > zmax):
@@ -74,83 +73,128 @@ class Soil(SimulationObject):
         zini = np.broadcast_to(self._dz, self.soil_shape).cumsum(0) - self._dz
         return np.clip(zmax - zini, 0, self._dz) - np.clip(zmin - zini, 0, self._dz)
     
-    def available_water(self, dz):
-        return dz * np.maximum(self._theta - self._theta_wp, 0)
-    
-    def evaporable_water(self, dz):
-        return dz * np.maximum(self._theta - 0.5*self._theta_wp, 0)
+    def available_water(self):
+        '''
+        Calculates the water available in the root zone (i.e., water above
+        wilting point).
 
-    def total_available_water(self, dz):
-        return dz * (self._theta_fc - self._theta_wp)
+        Returns
+        -------
+        A numpy.ndarray containing the water that roots can reach (m) for each cell
+        of soil.
+        '''
+        return self._root_zone() * np.clip(self._theta - self._theta_wp, 0, self._theta_fc - self._theta_wp)
     
-    def readily_available_water(self, dz):
-        return dz * (self._theta_fc - self._theta_wp) * self._p
+    def total_available_water(self):
+        return self._root_zone() * (self._theta_fc - self._theta_wp)
     
-    def total_evaporable_water(self, dz):
-        return dz * (self._theta_fc - 0.5*self._theta_wp)
+    def readily_available_water(self):
+        return self._root_zone() * (self._theta_fc - self._theta_wp) * self._p
     
-    def readily_evaporable_water(self, dz):
-        return dz * (self._theta_fc - 0.5*self._theta_wp) * self._pe
-    
-    def depletion_from_sat(self, dz):
-        return dz * np.maximum(self._theta_sat - self._theta, 0)
+    def evaporable_water(self):
+        return self._ze * np.clip(self._theta - 0.5*self._theta_wp, 0, self._theta_fc - 0.5*self._theta_wp)
 
-    def depletion_from_fc(self, dz):
-        return dz * np.maximum(self._theta_fc - self._theta, 0)
+    def total_evaporable_water(self):
+        return self._ze * (self._theta_fc - 0.5*self._theta_wp)
     
-    def depletion_from_wp(self, dz):
-        return dz * np.maximum(self._theta_wp - self._theta, 0)
+    def readily_evaporable_water(self):
+        return self._ze * (self._theta_fc - 0.5*self._theta_wp) * self._pe
     
-    def root_dist(self):
+    def depletion_evap(self):
+        return self._ze * np.maximum(self._theta_fc - self._theta, 0)
+    
+    def depletion_from_sat(self):
+        return self._root_zone() * np.maximum(self._theta_sat - self._theta, 0)
+
+    def depletion_from_fc(self):
+        return self._root_zone() * np.maximum(self._theta_fc - self._theta, 0)
+    
+    def depletion_from_wp(self):
+        return self._root_zone() * np.maximum(self._theta_wp - self._theta, 0)
+    
+    def _root_dist(self):
+        '''
+        Wrapper around Crop.root_dist, returns the root distribution for
+        each layer of soil, or raise an Exception if a crop has not been
+        set for self.simulation.crop.
+        '''
         zend = np.full(self.soil_shape, self._dz).cumsum(0)
         zini = zend - self._dz
         return self.simulation.crop.root_dist(zini, zend)
     
-    def extract(self, depth, dist, theta_min):
-        theta = np.copy(self._theta)
-        theta_min = np.minimum(theta, theta_min)
-        theta = np.maximum(theta - (depth * dist) / self._dz, theta_min)
-        ext = (self._theta - theta) * self._dz
-        self._theta = theta
-        return ext
+    def _root_zone(self):
+        return self.from_to(0, self.simulation.crop.zr)
     
-    def evaporate(self):
-        pass
-
     def drainage_characteristic(self) -> np.ndarray:
         tau_day = np.minimum(0.0866 * (self._ksat * 8.64e7) ** 0.35, 1)
         return 1 - (1 - tau_day) ** (self.simulation.dt / 8.64e4)
+
+    def _kcb(self):
+        return self.simulation.crop.kcb
     
-    def update(self):
-        rain = self.simulation.weather['rainfall']
-        dtheta, dp, ro = self.drain(rain)
+    def _few(self):
+        return self.simulation.management.few
+    
+    def _kc_max(self):
+        return self.simulation.weather['kc_max']
+    
+    def _rainfall(self):
+        return self.simulation.weather['rainfall']
+    
+    def _et_ref(self):
+        return self.simulation.weather['et_ref']
+    
+    def evap_dist(self):
+        return _safe_divide(self._ze, self._ze.sum(0), 0)
 
-        kc_max = self.simulation.weather['kc_max']
-        kcb = self.simulation.crop.kcb
-        ks = self.ks
-        few = self.simulation.management.few
-        kr = self.kr
-        ke = np.minimum(kr * (kc_max - kcb), few * kc_max)
-        et_ref = self.simulation.weather['et_ref']
+    def et_partitioning(self):
+        # ke, ks, kcb and et_ref are the same shape as the layer shape.
+        ke = self.ke()
+        ks = self.ks()
+        kcb = self._kcb()
+        et_ref = self._et_ref()
 
-        dist = self.root_dist()
+        aw = self.available_water()
+        ew = self.evaporable_water()
 
+        # maximum crop evapotranspiration
         etc = (kcb + ke) * et_ref
+
+        # actual evapotranspiration
         et = (ks*kcb + ke) * et_ref
 
-        
-        # how it should be
-        #
-        # legend:
-        # - few: exposed and wetted soil fraction
-        # - fc: covered soil fraction
-        # - (1-fc): exposed soil fraction
-        # - fw: wetted soil fraction
-        #
-        # few = min(1 - fc, fw)
-        # Ke = min(Kr * (Kcmax - Kcb), few * Kcmax)
-        # ETc = (Ks * Kcb + Ke) * ET0
+        # actual evaporation and transpiration
+        ev = np.minimum((ke * et_ref) * self.evap_dist(), ew)
+        tr = np.minimum((et - ev) * self._root_dist(), aw)
 
+        dtheta = (tr/self._dz) + (ev/self._dz)
+
+        self._theta -= dtheta
+
+        ret = {
+            'delta_theta': dtheta,
+            'ev': ev.sum(0),
+            'tr': tr.sum(0),
+            'tr_max': kcb * et_ref,
+            'et_max': etc
+        }
+
+        return ret
+    
+    def update(self):
+        rain = self._rainfall()
+        dtheta1, dp, ro = self.drain(rain)
+        dtheta2, ev, tr, tr_max, et_max = self.et_partitioning().values()
+
+        ret = {
+            'dp': dp,
+            'ro': ro,
+            'ev': ev,
+            'tr': tr,
+            'tr_max': tr_max,
+            'et_max': et_max,
+        }
+    
     def drain(self, depth):
         tau = self.drainage_characteristic()
         theta = self._theta.copy()

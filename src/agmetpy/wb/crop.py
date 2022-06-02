@@ -82,13 +82,17 @@ class Crop(SimulationObject):
 
 class CropManager(SimulationObject):
 
-    def __init__(self, id_map, *args, **kwargs):
+    def __init__(self, id_map, crops, *args, **kwargs):
         super(CropManager, self).__init__(id_map=id_map, **kwargs)
-        self.crops = args
+        self.crops = crops
         for i in range(len(self.crops)):
             self.crops[i].bound(i, self)
     
+    def get_mask(self, id):
+        return self.id_map == id
+
     def _nested_set(self, id, key):
+        self._var[key]
         self._set()
     
     def _get_kcb(self):
@@ -120,30 +124,51 @@ class CropManager(SimulationObject):
         return self._get('id_map')
     
     id_map = property(lambda self: self._get_id_map())
+
+class ManagedCrop(SimulationObject):
+
+    managed_properties = ['kcb', 'zr', 'height', 'fc']
+
+    def _get(self, varname):
+        if varname in self.managed_properties:
+            return self.manager._get(varname)
+        else:
+            return super(ManagedCrop, self)._get(varname)
     
-class CropTest:
+    def _set(self, varname, value):
+        if varname in self.managed_properties:
+            self.manager._set(varname, value)
+        else:
+            super(ManagedCrop, self)._set(varname, value)
+    
+    #=============================
+    # id
+    #=============================
 
-    def bound(self, id, parent):
-        self.id = id
-        self.parent = parent
+    def _get_id(self) -> int:
+        return self._id
 
-    def _set_id(self, value):
+    def _set_id(self, value: int) -> None:
         self._id = value
     
-    id = property(
+    id: int = property(
         lambda self: self._get_id(),
         lambda self, value: self._set_id(value))
     
-    def _get_parent(self):
+    #=============================
+    # parent
+    #=============================
+
+    def _get_parent(self) -> CropManager:
         return self._parent
-    
-    def _set_parent(self, value):
+
+    def _set_parent(self, value) -> None:
         self._parent = value
     
-    parent = property(
+    manager: CropManager = property(
         lambda self: self._get_parent(),
         lambda self, value: self._set_parent(value))
-
+    
 class CropConstant(Crop):
     def __init__(self, kcb, h, zr, fc, repeat: bool = True):
         super(CropConstant, self).__init__(kcb=kcb, h=h, zr=zr, fc=fc)

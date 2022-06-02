@@ -119,14 +119,27 @@ class Management(SimulationObject):
     irrigation = property(lambda self: self.get_irrigation())
 
 class ManagementConstant(Management):
-    def __init__(self):
-        super().__init__(fw=1)
+    def __init__(self, fw_ini, repeat=True, **kwargs):
+        self.repeat = repeat
+        self._fw = fw_ini
+        super(ManagementConstant, self).__init__(**kwargs)
     
-    def get_irrigation_fw(self):
-        1
-
+    def get_irri_fw(self):
+        return np.ones(self.shape)
+    
     def get_fw(self):
-        return self._get('fw')
+        rain = self.simulation.weather['rainfall']
+        irri = self.irrigation
+        irri_fw = self.get_irri_fw()
+        total = rain + irri
+        zerodiv = total == 0
+        total = np.where(zerodiv, 1, total)
+        fw = np.where(zerodiv, self._fw, (rain + irri_fw * irri) / total)
+        return fw
+    
+    def _get_index(self):
+        i = super(ManagementConstant, self)._get_index()
+        return i % self._var.shape[0] if self.repeat else i
     
     def get_few(self):
         fc = self.simulation.crop.ground_covering
@@ -134,7 +147,7 @@ class ManagementConstant(Management):
         return np.minimum(1-fc, fw)
     
     def get_irrigation(self):
-        return self._get('irrigation')
+        return self._get('irrigation')[self.index]
 
 from . import crop
 from . import soil

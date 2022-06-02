@@ -181,8 +181,11 @@ class Soil(SimulationObject):
 
         return ret
     
+    def _irrigation(self):
+        return self.simulation.management.irrigation
+    
     def update(self):
-        rain = self._rainfall()
+        rain = self._rainfall() + self._irrigation()
         dtheta1, dp, ro = self.drain(rain)
         dtheta2, ev, tr, tr_max, et_max = self.et_partitioning().values()
 

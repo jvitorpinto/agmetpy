@@ -56,36 +56,6 @@ class SimulationObject:
     index = property(
         lambda self: self._get_index())
 
-class ProxyObject(SimulationObject):
-
-    #====================================
-    # property id
-    #====================================
-
-    def _get_parent(self):
-        return self._parent
-    
-    def _set_parent(self, value):
-        self._parent = value
-    
-    parent = property(
-        lambda self: self._get_parent(),
-        lambda self, value: self._set_parent(value))
-
-    #====================================
-    # property id
-    #====================================
-
-    def _get_id(self):
-        return self._id
-    
-    def _set_id(self, value):
-        self._id = value
-    
-    id = property(
-        lambda self: self._get_id(),
-        lambda self, value: self._set_id(value))
-
 class Simulation:
 
     def __init__(

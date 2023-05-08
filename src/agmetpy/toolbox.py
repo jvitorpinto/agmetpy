@@ -492,7 +492,7 @@ def net_longwave_radiation(tmax, tmin, ea, cf = None, hourly = False):
     tmin : float
         Minimum air temperature [K].
     ea : float
-        Water vapour pressure [Pa].
+        Water vapor pressure [Pa].
     rs : float
         Solar radiation on a horizontal surface [J/m²].
     rs0 : float
@@ -515,7 +515,7 @@ def net_longwave_radiation(tmax, tmin, ea, cf = None, hourly = False):
     '''
     
     # p1 - emission of longwave radiation by air
-    # p2 - effect of water vapour
+    # p2 - effect of water vapor
     # cf - effect of cloudness
     mult = 3600 if (hourly) else 86400
     p1 = mult * (stefan_boltzmann_law(tmax) + stefan_boltzmann_law(tmin)) / 2
@@ -612,7 +612,7 @@ def air_density(temp, patm, pw = 0):
     
     where:
         Pd: Patm - Pw
-        Rw: specific gas constant for water vapour [Rw = 461.495 MJ/kg/K]
+        Rw: specific gas constant for water vapor [Rw = 461.495 MJ/kg/K]
         Rv: specific gas constant for dry air [Rv = 287.058 MJ/kg/K]
         T: air temperature [K]
         m/V: density of air [kg/m³]
@@ -624,7 +624,7 @@ def air_density(temp, patm, pw = 0):
     patm : float
         Atmospheric pressure [Pa].
     pw : float
-        Vapour pressure [Pa]. Default to 0 Pa (dry air).
+        vapor pressure [Pa]. Default to 0 Pa (dry air).
     
     Returns
     -------
@@ -632,19 +632,19 @@ def air_density(temp, patm, pw = 0):
         Air density [kg/m³].
 
     """
-    rd, rw = 287.058, 461.495 # specific gas constant for dry air and water vapour [J / (kg K)]
+    rd, rw = 287.058, 461.495 # specific gas constant for dry air and water vapor [J / (kg K)]
     pd = patm - pw
     return (pd / (rd * temp)) + (pw / (rw * temp))
 
 def absolute_humidity(ea, temp):
     '''
-    Calculates absolute humidity from partial pressure of water vapour and air
+    Calculates absolute humidity from partial pressure of water vapor and air
     temperature.
     
     Parameters
     ----------
     ea : float
-        Partial pressure of water vapour [Pa].
+        Partial pressure of water vapor [Pa].
     temp : float
         Absolute temperature [K].
     
@@ -654,7 +654,7 @@ def absolute_humidity(ea, temp):
         Absolute humidity [kg / m**3].
     
     '''
-    rw = 461.495 # specific gas constant for water vapour [J / (kg K)]
+    rw = 461.495 # specific gas constant for water vapor [J / (kg K)]
     return ea / (rw * temp)
 
 def specific_humidity(patm, ea, temp):
@@ -666,7 +666,7 @@ def specific_humidity(patm, ea, temp):
     patm : float
         Atmospheric pressure [Pa].
     ea : float
-        Partial pressure of water vapour [Pa].
+        Partial pressure of water vapor [Pa].
     temp : float
         Absolute temperature [K].
 
@@ -680,9 +680,9 @@ def specific_humidity(patm, ea, temp):
     hum = absolute_humidity(ea, temp)
     return hum / rho
 
-def vapour_pressure_from_absolute_humidity(h, temp):
+def vapor_pressure_from_absolute_humidity(h, temp):
     """
-    Calculates the partial pressure of water vapour for a given absolute air
+    Calculates the partial pressure of water vapor for a given absolute air
     humidity and temperature.
 
     Parameters
@@ -695,15 +695,15 @@ def vapour_pressure_from_absolute_humidity(h, temp):
     Returns
     -------
     float
-        Partial pressure of water vapour [Pa].
+        Partial pressure of water vapor [Pa].
 
     """
-    rw = 461.495 # specific gas constant for water vapour [J / (kg K)]
+    rw = 461.495 # specific gas constant for water vapor [J / (kg K)]
     return h * temp * rw
 
-def vapour_pressure_from_specific_humidity(q, patm, temp, max_iter = 20):
+def vapor_pressure_from_specific_humidity(q, patm, temp, max_iter = 20):
     """
-    Returns the partial pressure of water vapour for a given specific air
+    Returns the partial pressure of water vapor for a given specific air
     humidity and atmospheric condition.
     
     Parameters
@@ -720,15 +720,15 @@ def vapour_pressure_from_specific_humidity(q, patm, temp, max_iter = 20):
     Returns
     -------
     pw : float
-        Vapour pressure [Pa] for a given specific air humidity.
+        vapor pressure [Pa] for a given specific air humidity.
     
     """
-    rw = 461.495 # specific gas constant for water vapour [J / (kg K)]
+    rw = 461.495 # specific gas constant for water vapor [J / (kg K)]
     pw = 0
     stop = False
     i = 0
     
-    while i < max_iter or (not np.all(stop)):
+    while i < max_iter and (not np.all(stop)):
         rho = air_density(temp, patm, pw)
         new_pw = rho * q * rw * temp
         stop = new_pw == pw
@@ -737,10 +737,10 @@ def vapour_pressure_from_specific_humidity(q, patm, temp, max_iter = 20):
     
     return pw
 
-def vapour_saturation_pressure(temp):
+def vapor_saturation_pressure(temp):
     '''
-    Calculates the vapour saturation pressure. Vapour saturation pressure is
-    the partial pressure of water vapour mixed to the air when the air is at
+    Calculates the vapor saturation pressure. vapor saturation pressure is
+    the partial pressure of water vapor mixed to the air when the air is at
     saturation.
     
     Parameters
@@ -751,7 +751,7 @@ def vapour_saturation_pressure(temp):
     Returns
     -------
     float
-        vapour saturation pressure [Pa].
+        vapor saturation pressure [Pa].
 
     '''
     return 610.78 * np.exp((17.27 * temp - 4717.3005) / (temp - 35.85))
@@ -766,7 +766,7 @@ def coef_direct_beam_radiation(patm, ea, sz, kt, method = ClearnessIndexMethod.A
     patm : float
         atmospheric pressure [Pa].
     ea : float
-        partial pressure of water vapour [Pa].
+        partial pressure of water vapor [Pa].
     sz : float
         solar zenith angle [rad].
     kt : float
@@ -829,7 +829,7 @@ def clearness_index(patm, ea, sz, kt = 1, method = ClearnessIndexMethod.ASCE):
     patm : float
         Atmospheric pressure [Pa].
     ea : float
-        Vapour pressure [Pa].
+        vapor pressure [Pa].
     sz : float
         Solar zenith angle [radians]
     kt : float, optional
@@ -953,9 +953,9 @@ def reference_evapotranspiration(tmax, tmin, rn, g, psy, u2, es, ea, method = Re
     u2 : float
         Wind speed measured at 2 m height [m/s].
     es : float
-        Vapour saturation pressure [kPa].
+        vapor saturation pressure [kPa].
     ea : float
-        Vapour pressure [kPa].
+        vapor pressure [kPa].
     method : agmet.ReferenceEvapotranspirationMethod, optional
         Calculation method (see details). The default is ReferenceEvapotranspirationMethod.ASCE_ET0.
     hourly : TYPE, optional
@@ -987,7 +987,7 @@ def reference_evapotranspiration(tmax, tmin, rn, g, psy, u2, es, ea, method = Re
     '''
     temp = (tmin + tmax) / 2.
     
-    slope = (4098. * vapour_saturation_pressure(temp + 273.15) / 1000.) / (237.3 + temp) ** 2
+    slope = (4098. * vapor_saturation_pressure(temp + 273.15) / 1000.) / (237.3 + temp) ** 2
     
     # sets the coefficients cn and cd
     if (method == ReferenceEvapotranspirationMethod.FAO56):

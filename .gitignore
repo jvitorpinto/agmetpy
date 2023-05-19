@@ -1,2 +1,4 @@
 test_*.py
 .vscode
+__pycache__
+*.pyc
